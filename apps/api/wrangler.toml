@@ -16,7 +16,8 @@ new_classes = ["ChatRoom"]
 [[d1_databases]]
 binding = "DB"
 database_name = "two-db"
-database_id = "placeholder-replace-after-wrangler-d1-create"
+database_id = "c66015be-a0d6-49b1-ae76-f330986dfcfc"
+migrations_dir = "migrations"
 
 # R2 Bucket
 [[r2_buckets]]
@@ -26,7 +27,7 @@ bucket_name = "two-media"
 # KV Namespace (JWT blocklist)
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "placeholder-replace-after-wrangler-kv-create"
+id = "5b910b1bd9734d1a833f8473bf3e1004"
 
 [vars]
 ENVIRONMENT = "development"
