@@ -1,0 +1,35 @@
+name = "two-api"
+main = "src/index.ts"
+compatibility_date = "2025-04-14"
+compatibility_flags = ["nodejs_compat"]
+
+# Durable Objects
+[[durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ChatRoom"]
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "two-db"
+database_id = "placeholder-replace-after-wrangler-d1-create"
+
+# R2 Bucket
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "two-media"
+
+# KV Namespace (JWT blocklist)
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "placeholder-replace-after-wrangler-kv-create"
+
+[vars]
+ENVIRONMENT = "development"
+
+# Uncomment and set via `wrangler secret put JWT_SECRET` for production
+# JWT_SECRET = ""
