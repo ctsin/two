@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAppDispatch, useAppSelector } from "../hooks/store";
+import { useAppSelector } from "../hooks/store";
 import { apiFetch } from "../lib/api";
 import { decryptFile } from "@two/crypto";
 import { Download, FileText, Image as ImageIcon, Video } from "lucide-react";
@@ -16,7 +16,7 @@ export function MediaPreview({ message, sharedKey }: Props) {
   const token = useAppSelector((s) => s.auth.token);
   const [state, setState] = useState<State>("idle");
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [mimeType, setMimeType] = useState<string>("application/octet-stream");
+  const [, setMimeType] = useState<string>("application/octet-stream");
 
   const load = useCallback(async () => {
     if (!message.mediaKey || !token) return;
