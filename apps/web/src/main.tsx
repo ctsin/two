@@ -4,7 +4,6 @@ import { Provider } from "react-redux";
 import { store } from "./store";
 import App from "./App.tsx";
 import "./index.css";
-import "@fontsource-variable/geist";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
