@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import { eq, or, and, lt, desc } from "drizzle-orm";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 import { conversations, messages, users } from "@two/shared/schema";
 import { authMiddleware, type AuthVariables } from "../middleware/auth";
 import type { Env } from "../index";
@@ -11,6 +13,106 @@ const conversationsRoute = new Hono<{
 }>();
 
 conversationsRoute.use("*", authMiddleware);
+
+// POST /api/conversations — create or get existing conversation with another user
+const CreateConversationSchema = z.object({ otherUserId: z.string().uuid() });
+
+conversationsRoute.post(
+  "/",
+  zValidator("json", CreateConversationSchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const { otherUserId } = c.req.valid("json");
+
+    if (userId === otherUserId) {
+      return c.json(
+        { error: "Cannot start a conversation with yourself" },
+        400,
+      );
+    }
+
+    const db = drizzle(c.env.DB);
+
+    // Verify the other user exists
+    const otherUser = await db
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        phone: users.phone,
+      })
+      .from(users)
+      .where(eq(users.id, otherUserId))
+      .get();
+
+    if (!otherUser) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    // Check if a conversation already exists between the two users
+    const existing = await db
+      .select({
+        id: conversations.id,
+        participantAId: conversations.participantAId,
+        participantBId: conversations.participantBId,
+        createdAt: conversations.createdAt,
+        otherUserId: users.id,
+        otherDisplayName: users.displayName,
+        otherPhone: users.phone,
+      })
+      .from(conversations)
+      .innerJoin(
+        users,
+        or(
+          and(
+            eq(conversations.participantAId, userId),
+            eq(users.id, conversations.participantBId),
+          ),
+          and(
+            eq(conversations.participantBId, userId),
+            eq(users.id, conversations.participantAId),
+          ),
+        ),
+      )
+      .where(
+        or(
+          and(
+            eq(conversations.participantAId, userId),
+            eq(conversations.participantBId, otherUserId),
+          ),
+          and(
+            eq(conversations.participantAId, otherUserId),
+            eq(conversations.participantBId, userId),
+          ),
+        ),
+      )
+      .get();
+
+    if (existing) {
+      return c.json({ conversation: existing });
+    }
+
+    // Create new conversation
+    const id = crypto.randomUUID();
+    await db.insert(conversations).values({
+      id,
+      participantAId: userId,
+      participantBId: otherUserId,
+      createdAt: new Date(),
+    });
+
+    const conversation = {
+      id,
+      participantAId: userId,
+      participantBId: otherUserId,
+      createdAt: new Date().toISOString(),
+      otherUserId: otherUser.id,
+      otherDisplayName: otherUser.displayName,
+      otherPhone: otherUser.phone,
+    };
+
+    return c.json({ conversation }, 201);
+  },
+);
 
 // GET /api/conversations — list all conversations for the authenticated user
 conversationsRoute.get("/", async (c) => {

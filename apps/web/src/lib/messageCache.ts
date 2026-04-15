@@ -42,7 +42,14 @@ export async function getCachedMessages(
   conversationId: string,
 ): Promise<DecryptedMessage[]> {
   const idb = await db();
-  return idb.getAllFromIndex(STORE, "conversationId", conversationId);
+  const msgs = await idb.getAllFromIndex(
+    STORE,
+    "conversationId",
+    conversationId,
+  );
+  return msgs.sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
 }
 
 export async function clearConversationCache(

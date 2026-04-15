@@ -88,6 +88,51 @@ export const loadMessages = createAsyncThunk(
   },
 );
 
+export const syncMissedMessages = createAsyncThunk(
+  "messages/sync",
+  async (
+    {
+      conversationId,
+      sharedKey,
+    }: { conversationId: string; sharedKey: CryptoKey },
+    { getState },
+  ) => {
+    const state = getState() as RootState;
+    const existing = state.messages.byConversation[conversationId] ?? [];
+    if (existing.length === 0) return { conversationId, messages: [] };
+
+    const lastCreatedAt = existing[existing.length - 1].createdAt;
+    const since = new Date(lastCreatedAt).getTime();
+
+    const res = await apiFetch(
+      `/api/conversations/${conversationId}/messages?since=${since}&limit=100`,
+      state.auth.token,
+    );
+    if (!res.ok) return { conversationId, messages: [] };
+    const data = (await res.json()) as { messages: RawMessage[] };
+    if (data.messages.length === 0) return { conversationId, messages: [] };
+
+    const decrypted: DecryptedMessage[] = await Promise.all(
+      data.messages.map(async (m) => ({
+        id: m.id,
+        conversationId: m.conversationId,
+        senderId: m.senderId,
+        type: m.type,
+        content:
+          m.type === "text"
+            ? await decrypt(m.encryptedContent, m.iv, sharedKey)
+            : "",
+        mediaKey: m.mediaKey,
+        iv: m.iv,
+        createdAt: m.createdAt,
+      })),
+    );
+
+    await cacheMessages(decrypted);
+    return { conversationId, messages: decrypted };
+  },
+);
+
 const messagesSlice = createSlice({
   name: "messages",
   initialState,
@@ -133,6 +178,19 @@ const messagesSlice = createSlice({
       .addCase(loadMessages.rejected, (state, action) => {
         const { conversationId } = action.meta.arg;
         state.status[conversationId] = "idle";
+      })
+      .addCase(syncMissedMessages.fulfilled, (state, action) => {
+        const { conversationId, messages: newMsgs } = action.payload;
+        if (!state.byConversation[conversationId] || newMsgs.length === 0)
+          return;
+        for (const msg of newMsgs) {
+          const exists = state.byConversation[conversationId].some(
+            (m) => m.id === msg.id,
+          );
+          if (!exists) {
+            state.byConversation[conversationId].push(msg);
+          }
+        }
       });
   },
 });

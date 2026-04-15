@@ -5,15 +5,22 @@ import { getCachedSharedKey, setCachedSharedKey } from "../lib/sharedKeyCache";
 import { getPrivateKey } from "../lib/keystore";
 import { useAppSelector } from "./store";
 
+export interface SharedKeyResult {
+  key: CryptoKey | null;
+  /** True when the other user hasn't registered their public key yet. */
+  keyMissing: boolean;
+}
+
 /**
  * Derives (or returns from cache) the AES-GCM shared key for a conversation
  * with `otherUserId`. Returns null while the key is being derived.
  */
-export function useSharedKey(otherUserId: string | null): CryptoKey | null {
+export function useSharedKey(otherUserId: string | null): SharedKeyResult {
   const token = useAppSelector((s) => s.auth.token);
   const [sharedKey, setSharedKey] = useState<CryptoKey | null>(() =>
     otherUserId ? (getCachedSharedKey(otherUserId) ?? null) : null,
   );
+  const [keyMissing, setKeyMissing] = useState(false);
 
   useEffect(() => {
     if (!otherUserId || !token) return;
@@ -21,6 +28,7 @@ export function useSharedKey(otherUserId: string | null): CryptoKey | null {
     const cached = getCachedSharedKey(otherUserId);
     if (cached) {
       setSharedKey(cached);
+      setKeyMissing(false);
       return;
     }
 
@@ -28,9 +36,16 @@ export function useSharedKey(otherUserId: string | null): CryptoKey | null {
     (async () => {
       // Fetch other user's public key
       const res = await apiFetch(`/api/users/${otherUserId}/public-key`, token);
-      if (!res.ok || cancelled) return;
+      if (cancelled) return;
+      if (!res.ok) {
+        if (res.status === 404) setKeyMissing(true);
+        return;
+      }
       const data = (await res.json()) as { publicKey: string | null };
-      if (!data.publicKey || cancelled) return;
+      if (!data.publicKey || cancelled) {
+        setKeyMissing(true);
+        return;
+      }
 
       const theirPublic = await importPublicKey(data.publicKey);
       const myPrivate = await getPrivateKey();
@@ -40,6 +55,7 @@ export function useSharedKey(otherUserId: string | null): CryptoKey | null {
       if (!cancelled) {
         setCachedSharedKey(otherUserId, key);
         setSharedKey(key);
+        setKeyMissing(false);
       }
     })();
 
@@ -48,5 +64,5 @@ export function useSharedKey(otherUserId: string | null): CryptoKey | null {
     };
   }, [otherUserId, token]);
 
-  return sharedKey;
+  return { key: sharedKey, keyMissing };
 }

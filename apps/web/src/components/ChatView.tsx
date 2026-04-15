@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "../hooks/store";
-import { loadMessages } from "../store/messagesSlice";
+import { loadMessages, syncMissedMessages } from "../store/messagesSlice";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useSharedKey } from "../hooks/useSharedKey";
 import { MessageBubble } from "./MessageBubble";
@@ -24,8 +24,14 @@ export function ChatView({ conversationId }: Props) {
     (s) => s.messages.status[conversationId] ?? "idle",
   );
 
-  const sharedKey = useSharedKey(conversation?.otherUserId ?? null);
-  const { sendMessage } = useWebSocket(conversationId, sharedKey);
+  const { key: sharedKey, keyMissing } = useSharedKey(
+    conversation?.otherUserId ?? null,
+  );
+  const { sendMessage } = useWebSocket(conversationId, sharedKey, () => {
+    if (sharedKey) {
+      dispatch(syncMissedMessages({ conversationId, sharedKey }));
+    }
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Load history once shared key is ready
@@ -74,7 +80,13 @@ export function ChatView({ conversationId }: Props) {
             Loading messages…
           </p>
         )}
-        {!sharedKey && msgStatus !== "loading" && (
+        {!sharedKey && keyMissing && (
+          <p className="text-center text-sm text-muted-foreground py-8">
+            {otherName} hasn't set up their device yet. Ask them to log in
+            first.
+          </p>
+        )}
+        {!sharedKey && !keyMissing && msgStatus !== "loading" && (
           <p className="text-center text-sm text-muted-foreground py-8">
             Establishing secure channel…
           </p>

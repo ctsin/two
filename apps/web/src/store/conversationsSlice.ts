@@ -39,6 +39,21 @@ export const fetchConversations = createAsyncThunk(
   },
 );
 
+export const createConversation = createAsyncThunk(
+  "conversations/create",
+  async (otherUserId: string, { getState }) => {
+    const { auth } = getState() as RootState;
+    const res = await apiFetch("/api/conversations", auth.token, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ otherUserId }),
+    });
+    if (!res.ok) throw new Error("Failed to create conversation");
+    const data = (await res.json()) as { conversation: ConversationItem };
+    return data.conversation;
+  },
+);
+
 const conversationsSlice = createSlice({
   name: "conversations",
   initialState,
@@ -58,6 +73,14 @@ const conversationsSlice = createSlice({
       })
       .addCase(fetchConversations.rejected, (state) => {
         state.status = "error";
+      })
+      .addCase(createConversation.fulfilled, (state, action) => {
+        const conv = action.payload;
+        // Add to list only if not already present
+        if (!state.items.find((c) => c.id === conv.id)) {
+          state.items.unshift(conv);
+        }
+        state.currentId = conv.id;
       });
   },
 });

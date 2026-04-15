@@ -23,7 +23,7 @@ export function LoginScreen() {
       setHint("Type a phone number using the format #1234567890");
       return;
     }
-    const phone = match[1];
+    const phone = `+${match[1]}`;
     const result = await dispatch(login(phone));
     if (login.fulfilled.match(result)) {
       // Ensure A key pair exists and is registered with the server

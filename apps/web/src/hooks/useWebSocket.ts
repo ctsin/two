@@ -11,6 +11,7 @@ const MAX_BACKOFF_MS = 30_000;
 export function useWebSocket(
   conversationId: string | null,
   sharedKey: CryptoKey | null,
+  onReconnect?: () => void,
 ) {
   const token = useAppSelector((s) => s.auth.token);
   const dispatch = useAppDispatch();
@@ -18,6 +19,12 @@ export function useWebSocket(
   const backoffRef = useRef(1000);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
+  const isFirstConnectRef = useRef(true);
+  // Keep onReconnect in a ref so it never invalidates the connect callback
+  const onReconnectRef = useRef(onReconnect);
+  useEffect(() => {
+    onReconnectRef.current = onReconnect;
+  }, [onReconnect]);
 
   const connect = useCallback(() => {
     if (!conversationId || !token || !sharedKey || unmountedRef.current) return;
@@ -29,6 +36,10 @@ export function useWebSocket(
 
     ws.onopen = () => {
       backoffRef.current = 1000; // reset backoff on successful connect
+      if (!isFirstConnectRef.current) {
+        onReconnectRef.current?.();
+      }
+      isFirstConnectRef.current = false;
     };
 
     ws.onmessage = async (event: MessageEvent<string>) => {
@@ -81,6 +92,7 @@ export function useWebSocket(
 
   useEffect(() => {
     unmountedRef.current = false;
+    isFirstConnectRef.current = true;
     connect();
     return () => {
       unmountedRef.current = true;

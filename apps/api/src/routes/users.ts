@@ -44,6 +44,31 @@ usersRoute.put(
   },
 );
 
+// GET /api/users?phone=+1234567890 — look up a user by phone number
+usersRoute.get("/", async (c) => {
+  const phone = c.req.query("phone");
+  if (!phone) {
+    return c.json({ error: "Missing phone query parameter" }, 400);
+  }
+
+  const db = drizzle(c.env.DB);
+  const user = await db
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      phone: users.phone,
+    })
+    .from(users)
+    .where(eq(users.phone, phone))
+    .get();
+
+  if (!user) {
+    return c.json({ error: "User not found" }, 404);
+  }
+
+  return c.json({ user });
+});
+
 // GET /api/users/:id/public-key — fetch another user's public key for ECDH
 usersRoute.get("/:id/public-key", async (c) => {
   const targetId = c.req.param("id");

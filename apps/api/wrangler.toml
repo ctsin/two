@@ -2,6 +2,8 @@ name = "two-api"
 main = "src/index.ts"
 compatibility_date = "2025-04-14"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+route = { pattern = "api.two.ctsin.dev/*", zone_name = "ctsin.dev" }
 
 # Durable Objects
 [[durable_objects.bindings]]
@@ -39,3 +41,25 @@ R2_SECRET_ACCESS_KEY = ""
 
 # Uncomment and set via `wrangler secret put JWT_SECRET` for production
 # JWT_SECRET = ""
+
+[env.production]
+vars = { ENVIRONMENT = "production" }
+route = { pattern = "api.two.ctsin.dev/*", zone_name = "ctsin.dev" }
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "two-db"
+database_id = "c66015be-a0d6-49b1-ae76-f330986dfcfc"
+migrations_dir = "migrations"
+
+[[env.production.r2_buckets]]
+binding = "MEDIA"
+bucket_name = "two-media"
+
+[[env.production.kv_namespaces]]
+binding = "SESSIONS"
+id = "5b910b1bd9734d1a833f8473bf3e1004"
+
+[[env.production.durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoom"

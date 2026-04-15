@@ -9,8 +9,8 @@ export const RegisterPublicKeySchema = z.object({
 });
 
 export const SendMessageSchema = z.object({
-  id: z.string().uuid(),
-  conversationId: z.string().uuid(),
+  id: z.string().min(1),
+  conversationId: z.string().min(1),
   type: z.enum(["text", "image", "video", "file"]),
   encryptedContent: z.string().min(1),
   mediaKey: z.string().nullable().optional(),
