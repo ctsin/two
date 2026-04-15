@@ -12,11 +12,17 @@ export const authMiddleware = createMiddleware<{
   Variables: AuthVariables;
 }>(async (c, next) => {
   const authHeader = c.req.header("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
+  // WebSocket upgrades cannot set headers in browsers — fall back to ?token=
+  const queryToken = c.req.query("token");
+
+  let token: string;
+  if (authHeader?.startsWith("Bearer ")) {
+    token = authHeader.slice(7);
+  } else if (queryToken) {
+    token = queryToken;
+  } else {
     return c.json({ error: "Unauthorized" }, 401);
   }
-
-  const token = authHeader.slice(7);
 
   let payload: { sub: string; phone: string; exp: number };
   try {

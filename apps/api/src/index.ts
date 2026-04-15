@@ -3,6 +3,9 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { authMiddleware } from "./middleware/auth";
 import authRoutes from "./routes/auth";
+import usersRoutes from "./routes/users";
+import conversationsRoutes from "./routes/conversations";
+import mediaRoutes from "./routes/media";
 
 export { ChatRoom } from "./durable-objects/chat-room";
 
@@ -13,6 +16,10 @@ export interface Env {
   CHAT_ROOM: DurableObjectNamespace;
   JWT_SECRET: string;
   ENVIRONMENT: string;
+  // Optional: needed only for presigned R2 upload URLs
+  R2_ACCOUNT_ID?: string;
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -35,5 +42,8 @@ app.route("/auth", authRoutes);
 
 // All routes below require a valid JWT
 app.use("/api/*", authMiddleware);
+app.route("/api/users", usersRoutes);
+app.route("/api/conversations", conversationsRoutes);
+app.route("/api/media", mediaRoutes);
 
 export default app;

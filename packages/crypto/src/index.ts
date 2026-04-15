@@ -143,3 +143,98 @@ function base64ToBuffer(base64: string): ArrayBuffer {
   }
   return bytes.buffer as ArrayBuffer;
 }
+
+// ── Thumbnail Generation (Browser-only) ──────────────────────────────────────
+// Generates a compressed JPEG thumbnail from an image or video File and
+// returns the encrypted bytes ready to upload alongside the main file.
+
+const THUMBNAIL_MAX_PX = 320;
+const THUMBNAIL_QUALITY = 0.75;
+
+export interface EncryptedThumbnail {
+  data: ArrayBuffer; // encrypted thumbnail bytes
+  iv: string; // base64-encoded IV
+  mimeType: "image/jpeg";
+}
+
+/**
+ * Generate an encrypted thumbnail for an image or video file.
+ * Returns null for unsupported MIME types.
+ * Browser-only — requires OffscreenCanvas / createImageBitmap / HTMLVideoElement.
+ */
+export async function generateEncryptedThumbnail(
+  file: File,
+  sharedKey: CryptoKey,
+): Promise<EncryptedThumbnail | null> {
+  let bitmap: ImageBitmap;
+
+  if (file.type.startsWith("image/")) {
+    bitmap = await createImageBitmap(file);
+  } else if (file.type.startsWith("video/")) {
+    bitmap = await captureVideoFrame(file);
+  } else {
+    return null;
+  }
+
+  const { width, height } = scaleDimensions(
+    bitmap.width,
+    bitmap.height,
+    THUMBNAIL_MAX_PX,
+  );
+
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  const blob = await canvas.convertToBlob({
+    type: "image/jpeg",
+    quality: THUMBNAIL_QUALITY,
+  });
+  const rawBuffer = await blob.arrayBuffer();
+
+  const { data, iv } = await encryptFile(rawBuffer, sharedKey);
+  return { data, iv, mimeType: "image/jpeg" };
+}
+
+function scaleDimensions(
+  w: number,
+  h: number,
+  max: number,
+): { width: number; height: number } {
+  if (w <= max && h <= max) return { width: w, height: h };
+  const ratio = Math.min(max / w, max / h);
+  return { width: Math.round(w * ratio), height: Math.round(h * ratio) };
+}
+
+function captureVideoFrame(file: File): Promise<ImageBitmap> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+
+    const objectUrl = URL.createObjectURL(file);
+    video.src = objectUrl;
+
+    video.addEventListener("loadeddata", async () => {
+      // Seek to 1s or mid-point, whichever is earlier, for a representative frame
+      video.currentTime = Math.min(1, video.duration / 2);
+    });
+
+    video.addEventListener("seeked", async () => {
+      URL.revokeObjectURL(objectUrl);
+      try {
+        const bitmap = await createImageBitmap(video);
+        resolve(bitmap);
+      } catch (err) {
+        reject(err);
+      }
+    });
+
+    video.addEventListener("error", () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Failed to load video for thumbnail"));
+    });
+  });
+}
